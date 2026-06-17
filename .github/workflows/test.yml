@@ -9,7 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -25,4 +24,14 @@ jobs:
         run: uv sync --group dev
 
       - name: Run pytest
-        run: uv run pytest
+        run: uv run pytest --json-report --json-report-file=report.json
+
+      - name: Notify Slack
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          PASSED=$(python -c "import json; d=json.load(open('report.json')); print(d.get('summary',{}).get('passed',0))" 2>/dev/null || echo "?")
+          FAILED=$(python -c "import json; d=json.load(open('report.json')); print(d.get('summary',{}).get('failed',0))" 2>/dev/null || echo "?")
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            -d "{\"text\": \"テスト結果: ${STATUS}\n✅ passed: ${PASSED} / ❌ failed: ${FAILED}\"}"
