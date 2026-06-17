@@ -43,6 +43,7 @@ jobs:
           files = c.get('files', {})
 
           lines = []
+          lines.append(f"🔗 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
           lines.append(f"テスト結果: ${{ job.status }}")
           lines.append(f"✅ passed: {summary.get('passed', 0)} / ❌ failed: {summary.get('failed', 0)} / 合計: {summary.get('total', 0)}")
           lines.append(f"⏱ 実行時間: {r.get('duration', 0):.2f}s")
