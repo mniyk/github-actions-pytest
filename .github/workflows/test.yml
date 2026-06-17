@@ -29,9 +29,32 @@ jobs:
       - name: Notify Slack
         if: always()
         run: |
-          STATUS="${{ job.status }}"
-          PASSED=$(python -c "import json; d=json.load(open('report.json')); print(d.get('summary',{}).get('passed',0))" 2>/dev/null || echo "?")
-          FAILED=$(python -c "import json; d=json.load(open('report.json')); print(d.get('summary',{}).get('failed',0))" 2>/dev/null || echo "?")
-          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
-            -H 'Content-type: application/json' \
-            -d "{\"text\": \"テスト結果: ${STATUS}\n✅ passed: ${PASSED} / ❌ failed: ${FAILED}\"}"
+          python - <<'EOF'
+          import json, urllib.request
+
+          with open('report.json') as f:
+              d = json.load(f)
+
+          summary = d.get('summary', {})
+          tests = d.get('tests', [])
+
+          lines = []
+          lines.append(f"テスト結果: ${{ job.status }}")
+          lines.append(f"✅ passed: {summary.get('passed', 0)} / ❌ failed: {summary.get('failed', 0)} / 合計: {summary.get('total', 0)}")
+          lines.append(f"⏱ 実行時間: {d.get('duration', 0):.2f}s")
+          lines.append("")
+
+          for t in tests:
+              icon = "✅" if t['outcome'] == "passed" else "❌"
+              name = t['nodeid'].split("::")[-1]
+              duration = t.get('call', {}).get('duration', 0)
+              lines.append(f"{icon} {name} ({duration*1000:.1f}ms)")
+
+          payload = json.dumps({"text": "\n".join(lines)}).encode()
+          req = urllib.request.Request(
+              "${{ secrets.SLACK_WEBHOOK_URL }}",
+              data=payload,
+              headers={"Content-type": "application/json"}
+          )
+          urllib.request.urlopen(req)
+          EOF
