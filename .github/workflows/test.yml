@@ -24,7 +24,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Run pytest
-        run: uv run pytest --json-report --json-report-file=report.json
+        run: uv run pytest --json-report --json-report-file=report.json --cov --cov-report=json:coverage.json
 
       - name: Notify Slack
         if: always()
@@ -33,22 +33,34 @@ jobs:
           import json, urllib.request
 
           with open('report.json') as f:
-              d = json.load(f)
+              r = json.load(f)
+          with open('coverage.json') as f:
+              c = json.load(f)
 
-          summary = d.get('summary', {})
-          tests = d.get('tests', [])
+          summary = r.get('summary', {})
+          tests = r.get('tests', [])
+          totals = c.get('totals', {})
+          files = c.get('files', {})
 
           lines = []
           lines.append(f"テスト結果: ${{ job.status }}")
           lines.append(f"✅ passed: {summary.get('passed', 0)} / ❌ failed: {summary.get('failed', 0)} / 合計: {summary.get('total', 0)}")
-          lines.append(f"⏱ 実行時間: {d.get('duration', 0):.2f}s")
+          lines.append(f"⏱ 実行時間: {r.get('duration', 0):.2f}s")
           lines.append("")
 
+          lines.append("📋 テスト詳細")
           for t in tests:
               icon = "✅" if t['outcome'] == "passed" else "❌"
               name = t['nodeid'].split("::")[-1]
               duration = t.get('call', {}).get('duration', 0)
-              lines.append(f"{icon} {name} ({duration*1000:.1f}ms)")
+              lines.append(f"  {icon} {name} ({duration*1000:.1f}ms)")
+
+          lines.append("")
+          lines.append(f"📊 カバレッジ: {totals.get('percent_covered', 0):.1f}%")
+          for filename, info in files.items():
+              pct = info['summary']['percent_covered']
+              icon = "✅" if pct == 100 else "⚠️" if pct >= 80 else "❌"
+              lines.append(f"  {icon} {filename}: {pct:.1f}%")
 
           payload = json.dumps({"text": "\n".join(lines)}).encode()
           req = urllib.request.Request(
@@ -58,3 +70,4 @@ jobs:
           )
           urllib.request.urlopen(req)
           EOF
+
